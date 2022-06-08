@@ -1,5 +1,7 @@
 # password
 
+[![Go](https://github.com/ggicci/password/actions/workflows/go.yaml/badge.svg?branch=main)](https://github.com/ggicci/password/actions/workflows/go.yaml) [![codecov](https://codecov.io/gh/ggicci/password/branch/main/graph/badge.svg?token=RT61L9ngHj)](https://codecov.io/gh/ggicci/password) [![Go Report Card](https://goreportcard.com/badge/github.com/ggicci/password)](https://goreportcard.com/report/github.com/ggicci/password) [![Go Reference](https://pkg.go.dev/badge/github.com/ggicci/password.svg)](https://pkg.go.dev/github.com/ggicci/password)
+
 Password Hash & Verification with Argon2
 
 ## Generate Password Hash from Plaintext
