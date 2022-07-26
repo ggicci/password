@@ -3,18 +3,10 @@ package password
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
-)
-
-var (
-	ErrInvalidPassword        = errors.New("invalid password")
-	ErrNotArgon2idPassword    = fmt.Errorf("%w: not an argon2id password", ErrInvalidPassword)
-	ErrUnsupportedAlgoVersion = fmt.Errorf("%w: unsupported algorithm version", ErrInvalidPassword)
 )
 
 type Argon2Password struct {
@@ -26,6 +18,7 @@ type Argon2Password struct {
 
 	plaintext     []byte
 	password      []byte
+	key           []byte
 	useRandomSalt bool
 }
 
@@ -40,6 +33,7 @@ func NewArgon2idPlaintext(plaintext string, opts ...Argon2PasswordOption) (Plain
 
 		plaintext:     []byte(plaintext),
 		password:      nil,
+		key:           nil,
 		useRandomSalt: true,
 	}
 
@@ -58,7 +52,7 @@ func NewArgon2idPlaintext(plaintext string, opts ...Argon2PasswordOption) (Plain
 }
 
 // Password generates a password hash.
-func (p *Argon2Password) Password() string {
+func (p *Argon2Password) Password() (string, error) {
 	key := argon2.IDKey(p.plaintext, p.Salt, p.Time, p.Memory, p.Parallelism, p.KeyLen)
 	parts := []string{
 		"argon2id",                                   // algo
@@ -70,17 +64,28 @@ func (p *Argon2Password) Password() string {
 		base64.RawStdEncoding.EncodeToString(p.Salt), // salt
 		base64.RawStdEncoding.EncodeToString(key),    // key
 	}
-	return "$" + strings.Join(parts, "$")
+	return "$" + strings.Join(parts, "$"), nil
 }
 
 // NewArgon2idPassword loads a password hash and can be used to verify a plaintext.
-func NewArgon2idPassword(password string) (Password, error) {
-	if !algoPredict(password, "$argon2id$") {
-		return nil, ErrNotArgon2idPassword
+func NewArgon2idPassword(password string) Password {
+	return &Argon2Password{
+		password: []byte(password),
+	}
+}
+
+func (p *Argon2Password) lazyInit() error {
+	if p.key != nil {
+		return nil
+	}
+
+	password := string(p.password)
+	if !strings.HasPrefix(password, "$argon2id$") {
+		return ErrNotArgon2idPassword
 	}
 	parts := strings.Split(password, "$")
 	if len(parts) != 9 {
-		return nil, ErrInvalidPassword
+		return ErrMalformedPassword
 	}
 	var (
 		version, _     = strconv.Atoi(parts[2])
@@ -93,24 +98,29 @@ func NewArgon2idPassword(password string) (Password, error) {
 	)
 
 	if version != argon2.Version {
-		return nil, ErrUnsupportedAlgoVersion
+		return ErrUnsupportedAlgoVersion
 	}
 
-	return &Argon2Password{
-		Time:        uint32(time),
-		Memory:      uint32(memory),
-		Parallelism: uint8(parallelism),
-		KeyLen:      uint32(keyLen),
-		Salt:        salt,
-
-		password: key,
-	}, nil
+	p.Time = uint32(time)
+	p.Memory = uint32(memory)
+	p.Parallelism = uint8(parallelism)
+	p.KeyLen = uint32(keyLen)
+	p.Salt = salt
+	p.key = key
+	return nil
 }
 
 // Verify verifies the plaintext with the password hash.
-func (p *Argon2Password) Verify(plaintext string) bool {
+func (p *Argon2Password) Verify(plaintext string) error {
+	if err := p.lazyInit(); err != nil {
+		return err
+	}
+
 	key := argon2.IDKey([]byte(plaintext), p.Salt, p.Time, p.Memory, p.Parallelism, p.KeyLen)
-	return bytes.Equal(key, p.password)
+	if bytes.Equal(key, p.key) {
+		return nil
+	}
+	return ErrMissmatchedPassword
 }
 
 // Argon2PasswordOption is a function that can be used to configure a Argon2Password.

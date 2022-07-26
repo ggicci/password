@@ -7,12 +7,12 @@ import (
 )
 
 func testArgon2idBasic(t *testing.T, plain Plaintext, plaintext string) {
-	password := plain.Password()
-	t.Logf("password: %s", password)
-	verifier, err := NewArgon2idPassword(password)
+	password, err := plain.Password()
 	assert.NoError(t, err)
-	assert.True(t, verifier.Verify(plaintext))
-	assert.False(t, verifier.Verify(plaintext+"1"))
+	t.Logf("password: %s", password)
+	verifier := NewArgon2idPassword(password)
+	assert.NoError(t, verifier.Verify(plaintext))
+	assert.Error(t, verifier.Verify(plaintext+"1"))
 }
 
 func TestArgon2idPassword(t *testing.T) {
@@ -20,9 +20,9 @@ func TestArgon2idPassword(t *testing.T) {
 	assert.NoError(t, err)
 	testArgon2idBasic(t, plain, "123456")
 
-	verifier, err := NewArgon2idPassword("$argon2id$19$2$65536$1$32$z8nM6bD5jWHGg4/qyPprmA$trqqulUDAjWZ550jfYBiq/0LsZXPcrMxlqBbM1TKhBx")
-	assert.NoError(t, err)
-	assert.False(t, verifier.Verify("123456"))
+	// incorrect password hash
+	verifier := NewArgon2idPassword("$argon2id$19$2$65536$1$32$z8nM6bD5jWHGg4/qyPprmA$trqqulUDAjWZ550jfYBiq/0LsZXPcrMxlqBbM1TKhBx")
+	assert.Error(t, verifier.Verify("123456"))
 
 	var errorCases = []struct {
 		password string
@@ -30,13 +30,12 @@ func TestArgon2idPassword(t *testing.T) {
 	}{
 		{"$argon$19$2$65536$1$32$z8nM6bD5jWHGg4/qyPprmA$trqqulUDAjWZ550jfYBiq/0LsZXPcrMxlqBbM1TKhBc", ErrNotArgon2idPassword},
 		{"$argon2id$18$2$65536$1$32$z8nM6bD5jWHGg4/qyPprmA$trqqulUDAjWZ550jfYBiq/0LsZXPcrMxlqBbM1TKhBc", ErrUnsupportedAlgoVersion},
-		{"$argon2id$19$65536$1$32$z8nM6bD5jWHGg4/qyPprmA$trqqulUDAjWZ550jfYBiq/0LsZXPcrMxlqBbM1TKhBc", ErrInvalidPassword},
+		{"$argon2id$19$65536$1$32$z8nM6bD5jWHGg4/qyPprmA$trqqulUDAjWZ550jfYBiq/0LsZXPcrMxlqBbM1TKhBc", ErrMalformedPassword},
 	}
 
 	for i, errorCase := range errorCases {
-		verifier, err := NewArgon2idPassword(errorCase.password)
-		assert.Nil(t, verifier, "case %d", i)
-		assert.Equal(t, errorCase.err, err, "case %d", i)
+		verifier := NewArgon2idPassword(errorCase.password)
+		assert.ErrorIs(t, verifier.Verify("123456"), errorCase.err, "case %d", i)
 	}
 }
 
