@@ -3,7 +3,7 @@ module github.com/ggicci/password
 go 1.17
 
 require (
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.17.0
 )
 
